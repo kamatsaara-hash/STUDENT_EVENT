@@ -133,6 +133,31 @@ async def register_event(event_id: str, data: dict):
         "id": str(result.inserted_id)
     }
 
+# LOGIN USER
+@app.post("/api/login")
+async def login(data: dict):
+    identifier = data.get("identifier")
+    password = data.get("password")
+
+    if not identifier or not password:
+        raise HTTPException(status_code=400, detail="All fields are required")
+
+    user = await users_collection.find_one({
+        "$or": [
+            {"username": identifier},
+            {"email": identifier}
+        ]
+    })
+
+    if not user or user["password"] != password:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+
+    return {
+        "message": "Login successful",
+        "id": str(user["_id"]),
+        "username": user["username"],
+        "email": user["email"]
+    }
 
 # GET MY EVENTS (user_id passed manually)
 @app.get("/api/my-events/{user_id}")
