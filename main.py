@@ -112,17 +112,35 @@ async def register_event(event_id: str, data: dict):
 
     user_id = data.get("user_id")
 
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID required")
+
+    # 🔎 Get user details
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 🔎 Get event details
+    event = await events_collection.find_one({"_id": ObjectId(event_id)})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # 🚫 Check duplicate registration
     existing = await registrations_collection.find_one({
-        "user": user_id,
-        "event": event_id
+        "user_id": user_id,
+        "event_id": event_id
     })
 
     if existing:
         raise HTTPException(status_code=400, detail="Already registered for this event")
 
+    # ✅ Store everything
     registration = {
-        "user": user_id,
-        "event": event_id,
+        "user_id": user_id,
+        "username": user["username"],
+        "event_id": event_id,
+        "event_name": event["name"],
+        "category": event["category"],
         "registeredAt": datetime.utcnow()
     }
 
@@ -130,7 +148,8 @@ async def register_event(event_id: str, data: dict):
 
     return {
         "message": "Event registered successfully",
-        "id": str(result.inserted_id)
+        "id": str(result.inserted_id),
+        "event_name": event["name"]
     }
 
 # LOGIN USER
@@ -164,13 +183,8 @@ async def login(data: dict):
 async def my_events(user_id: str):
     registrations = []
 
-    async for reg in registrations_collection.find({"user": user_id}):
-        event = await events_collection.find_one({"_id": ObjectId(reg["event"])})
+    async for reg in registrations_collection.find({"user_id": user_id}):
         reg["_id"] = str(reg["_id"])
-        reg["event"] = {
-            "name": event["name"],
-            "category": event["category"]
-        }
         registrations.append(reg)
 
     return registrations
